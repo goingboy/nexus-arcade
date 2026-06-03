@@ -65,6 +65,31 @@
             min-height: 36px;
             text-shadow: 0 0 10px rgba(255, 0, 255, 0.6);
         }
+        .back-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 100;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: rgba(0,229,255,0.08);
+            border: 1px solid rgba(0,229,255,0.25);
+            border-radius: 6px;
+            color: #00e5ff;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-decoration: none;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+        .back-btn:hover {
+            background: rgba(0,229,255,0.15);
+            border-color: rgba(0,229,255,0.5);
+            box-shadow: 0 0 15px rgba(0,229,255,0.2);
+            color: #fff;
+        }
         .controls {
             color: rgba(200, 220, 255, 0.35);
             margin-top: 12px;
@@ -102,6 +127,7 @@
     </style>
 </head>
 <body>
+    <a href="../index.html" class="back-btn">&#8592; 返回首页</a>
     <div class="scanline"></div>
     <div class="corner corner-tl"></div>
     <div class="corner corner-tr"></div>
