@@ -96,7 +96,6 @@
             font-size: 0.85em;
             letter-spacing: 1px;
         }
-
         .corner {
             position: fixed;
             width: 60px;
@@ -107,7 +106,6 @@
         .corner-tr { top: 15px; right: 15px; border-top: 2px solid #00ffff; border-right: 2px solid #00ffff; }
         .corner-bl { bottom: 15px; left: 15px; border-bottom: 2px solid #ff00ff; border-left: 2px solid #ff00ff; }
         .corner-br { bottom: 15px; right: 15px; border-bottom: 2px solid #ff00ff; border-right: 2px solid #ff00ff; }
-
         .scanline {
             position: fixed;
             top: 0;
@@ -127,7 +125,7 @@
     </style>
 </head>
 <body>
-    <a href="../index.html" class="back-btn">&#8592; 返回首页</a>
+    <a href="index.html" class="back-btn">&#8592; 返回首页</a>
     <div class="scanline"></div>
     <div class="corner corner-tl"></div>
     <div class="corner corner-tr"></div>
@@ -178,19 +176,59 @@
         const tileCount = canvas.width / gridSize;
 
         let snake = [];
-        let food = {};
+        let snakeSet = new Set();
+        let food = { x: 0, y: 0 };
         let direction = { x: 1, y: 0 };
         let nextDirection = { x: 1, y: 0 };
         let score = 0;
-        let gameLoop = null;
         let gameRunning = false;
         let gameOver = false;
         let speed = 150;
         let obstacles = [];
+        let obstacleSet = new Set();
         let foodEaten = 0;
         const OBSTACLE_INTERVAL = 5;
         let frameCount = 0;
         let currentLevel = 1;
+        let lastTime = 0;
+        let accumulator = 0;
+
+        const gridCanvas = document.createElement('canvas');
+        gridCanvas.width = canvas.width;
+        gridCanvas.height = canvas.height;
+        const gridCtx = gridCanvas.getContext('2d');
+        function drawGridCache() {
+            gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.06)';
+            gridCtx.lineWidth = 0.5;
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                gridCtx.beginPath();
+                gridCtx.moveTo(x, 0);
+                gridCtx.lineTo(x, canvas.height);
+                gridCtx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                gridCtx.beginPath();
+                gridCtx.moveTo(0, y);
+                gridCtx.lineTo(canvas.width, y);
+                gridCtx.stroke();
+            }
+        }
+        drawGridCache();
+
+        const snakeColorCache = [];
+        function buildSnakeColors(maxLen) {
+            snakeColorCache.length = 0;
+            for (let i = 0; i < maxLen; i++) {
+                const t = maxLen > 1 ? i / (maxLen - 1) : 0;
+                const r = Math.round(t * 255);
+                const g = Math.round(255 - t * 255);
+                const b = Math.round(255 - t * 255);
+                snakeColorCache.push(`rgb(${r},${g},${b})`);
+            }
+        }
+        buildSnakeColors(900);
+
+        function cellKey(x, y) { return x + y * tileCount; }
 
         function initGame() {
             snake = [
@@ -198,14 +236,19 @@
                 { x: 6, y: 15 },
                 { x: 5, y: 15 }
             ];
-            direction = { x: 1, y: 0 };
-            nextDirection = { x: 1, y: 0 };
+            snakeSet.clear();
+            snake.forEach(s => snakeSet.add(cellKey(s.x, s.y)));
+
+            direction.x = 1; direction.y = 0;
+            nextDirection.x = 1; nextDirection.y = 0;
             score = 0;
             speed = 150;
             obstacles = [];
+            obstacleSet.clear();
             foodEaten = 0;
             gameOver = false;
             currentLevel = 1;
+            accumulator = 0;
             levelDisplay.textContent = '关卡 1';
             updateScoreDisplay();
             spawnFood();
@@ -214,62 +257,61 @@
         function spawnFood() {
             let attempts = 0;
             do {
-                food = {
-                    x: Math.floor(Math.random() * tileCount),
-                    y: Math.floor(Math.random() * tileCount)
-                };
+                food.x = Math.floor(Math.random() * tileCount);
+                food.y = Math.floor(Math.random() * tileCount);
                 attempts++;
             } while (
-                (snake.some(seg => seg.x === food.x && seg.y === food.y) ||
-                obstacles.some(obs => obs.x === food.x && obs.y === food.y)) &&
+                (snakeSet.has(cellKey(food.x, food.y)) ||
+                obstacleSet.has(cellKey(food.x, food.y))) &&
                 attempts < 1000
             );
         }
 
         function spawnObstacle() {
             let attempts = 0;
-            let pos;
+            let px, py;
             do {
-                pos = {
-                    x: Math.floor(Math.random() * tileCount),
-                    y: Math.floor(Math.random() * tileCount)
-                };
+                px = Math.floor(Math.random() * tileCount);
+                py = Math.floor(Math.random() * tileCount);
                 attempts++;
             } while (
-                (snake.some(seg => seg.x === pos.x && seg.y === pos.y) ||
-                (pos.x === food.x && pos.y === food.y) ||
-                obstacles.some(obs => obs.x === pos.x && obs.y === pos.y)) &&
+                (snakeSet.has(cellKey(px, py)) ||
+                (px === food.x && py === food.y) ||
+                obstacleSet.has(cellKey(px, py))) &&
                 attempts < 1000
             );
-            if (attempts < 1000) obstacles.push(pos);
+            if (attempts < 1000) {
+                obstacles.push({ x: px, y: py });
+                obstacleSet.add(cellKey(px, py));
+            }
         }
 
         function update() {
-            direction = { ...nextDirection };
+            direction.x = nextDirection.x;
+            direction.y = nextDirection.y;
 
-            const head = {
-                x: snake[0].x + direction.x,
-                y: snake[0].y + direction.y
-            };
+            const hx = snake[0].x + direction.x;
+            const hy = snake[0].y + direction.y;
 
-            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+            if (hx < 0 || hx >= tileCount || hy < 0 || hy >= tileCount) {
                 endGame();
                 return;
             }
 
-            if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+            const key = cellKey(hx, hy);
+            if (snakeSet.has(key)) {
+                endGame();
+                return;
+            }
+            if (obstacleSet.has(key)) {
                 endGame();
                 return;
             }
 
-            if (obstacles.some(obs => obs.x === head.x && obs.y === head.y)) {
-                endGame();
-                return;
-            }
+            snake.unshift({ x: hx, y: hy });
+            snakeSet.add(key);
 
-            snake.unshift(head);
-
-            if (head.x === food.x && head.y === food.y) {
+            if (hx === food.x && hy === food.y) {
                 score += 10;
                 updateScoreDisplay();
                 updateLevelDisplay();
@@ -280,37 +322,28 @@
                 spawnFood();
                 if (speed > 60) {
                     speed -= 1.5;
-                    clearInterval(gameLoop);
-                    gameLoop = setInterval(gameStep, speed);
                 }
             } else {
-                snake.pop();
+                const tail = snake.pop();
+                snakeSet.delete(cellKey(tail.x, tail.y));
             }
         }
 
         function draw() {
             frameCount++;
 
-            ctx.fillStyle = '#0a0a1a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(gridCanvas, 0, 0);
 
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.06)';
-            ctx.lineWidth = 0.5;
-            for (let x = 0; x <= canvas.width; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            for (let y = 0; y <= canvas.height; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
+            ctx.fillStyle = '#0a0a1a';
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'source-over';
+
+            ctx.drawImage(gridCanvas, 0, 0);
 
             const pulseAlpha = 0.7 + 0.3 * Math.sin(frameCount * 0.08);
-            ctx.shadowBlur = 25;
+            ctx.save();
+            ctx.shadowBlur = 20;
             ctx.shadowColor = '#ff00ff';
             ctx.globalAlpha = pulseAlpha;
             ctx.fillStyle = '#ff00ff';
@@ -323,69 +356,66 @@
                 Math.PI * 2
             );
             ctx.fill();
-            ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
+            ctx.restore();
 
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#ff0033';
             ctx.fillStyle = '#ff0033';
-            obstacles.forEach(obs => {
-                ctx.fillRect(
-                    obs.x * gridSize + 1,
-                    obs.y * gridSize + 1,
-                    gridSize - 2,
-                    gridSize - 2
-                );
-            });
-            ctx.shadowBlur = 0;
+            const obsLen = obstacles.length;
+            for (let i = 0; i < obsLen; i++) {
+                const obs = obstacles[i];
+                ctx.fillRect(obs.x * gridSize + 1, obs.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            }
 
             const totalSegments = snake.length;
-            snake.forEach((segment, index) => {
-                const t = totalSegments > 1 ? index / (totalSegments - 1) : 0;
-                const r = Math.round(0 + t * 255);
-                const g = Math.round(255 - t * 255);
-                const b = Math.round(255 - t * 255);
-                const segColor = `rgb(${r}, ${g}, ${b})`;
+            const colorLen = snakeColorCache.length;
+            for (let i = totalSegments - 1; i >= 0; i--) {
+                const seg = snake[i];
+                ctx.fillStyle = i < colorLen ? snakeColorCache[i] : snakeColorCache[colorLen - 1];
+                ctx.fillRect(seg.x * gridSize + 1, seg.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            }
 
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = index === 0 ? '#00ffff' : '#ff00ff';
-                ctx.fillStyle = segColor;
-                ctx.fillRect(
-                    segment.x * gridSize + 1,
-                    segment.y * gridSize + 1,
-                    gridSize - 2,
-                    gridSize - 2
-                );
-                ctx.shadowBlur = 0;
+            const head = snake[0];
+            ctx.save();
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00ffff';
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(head.x * gridSize + 1, head.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            ctx.restore();
 
-                if (index === 0) {
-                    ctx.fillStyle = '#0a0a1a';
-                    const eyeOffset = direction.x !== 0 ? 5 : 3;
-                    ctx.beginPath();
-                    ctx.arc(
-                        segment.x * gridSize + gridSize / 2 + direction.x * eyeOffset - 3,
-                        segment.y * gridSize + gridSize / 2 + direction.y * eyeOffset - 3,
-                        2, 0, Math.PI * 2
-                    );
-                    ctx.arc(
-                        segment.x * gridSize + gridSize / 2 + direction.x * eyeOffset + 3,
-                        segment.y * gridSize + gridSize / 2 + direction.y * eyeOffset - 3,
-                        2, 0, Math.PI * 2
-                    );
-                    ctx.fill();
-                }
-            });
+            ctx.fillStyle = '#0a0a1a';
+            const eyeOffset = direction.x !== 0 ? 5 : 3;
+            ctx.beginPath();
+            ctx.arc(
+                head.x * gridSize + gridSize / 2 + direction.x * eyeOffset - 3,
+                head.y * gridSize + gridSize / 2 + direction.y * eyeOffset - 3,
+                2, 0, Math.PI * 2
+            );
+            ctx.arc(
+                head.x * gridSize + gridSize / 2 + direction.x * eyeOffset + 3,
+                head.y * gridSize + gridSize / 2 + direction.y * eyeOffset - 3,
+                2, 0, Math.PI * 2
+            );
+            ctx.fill();
         }
 
-        function gameStep() {
-            update();
+        function gameLoop(ts) {
+            if (!gameRunning) return;
+            const dt = ts - lastTime;
+            lastTime = ts;
+            accumulator += dt;
+
+            while (accumulator >= speed) {
+                update();
+                accumulator -= speed;
+                if (gameOver) return;
+            }
+
             draw();
+            requestAnimationFrame(gameLoop);
         }
 
         function endGame() {
             gameRunning = false;
             gameOver = true;
-            clearInterval(gameLoop);
             if (score > highScore) {
                 highScore = score;
                 try { localStorage.setItem('snakeHighScore', highScore); } catch(e) {}
@@ -401,7 +431,9 @@
             if (!gameRunning) {
                 gameRunning = true;
                 messageDisplay.textContent = '';
-                gameLoop = setInterval(gameStep, speed);
+                lastTime = performance.now();
+                accumulator = 0;
+                requestAnimationFrame(gameLoop);
             }
         }
 
@@ -412,7 +444,6 @@
             }
             if (gameRunning) {
                 gameRunning = false;
-                clearInterval(gameLoop);
                 messageDisplay.textContent = '游戏暂停 - 按空格键继续';
             } else {
                 startGame();
@@ -437,19 +468,19 @@
             switch (key) {
                 case 'arrowup':
                 case 'w':
-                    if (direction.y !== 1) nextDirection = { x: 0, y: -1 };
+                    if (direction.y !== 1) { nextDirection.x = 0; nextDirection.y = -1; }
                     break;
                 case 'arrowdown':
                 case 's':
-                    if (direction.y !== -1) nextDirection = { x: 0, y: 1 };
+                    if (direction.y !== -1) { nextDirection.x = 0; nextDirection.y = 1; }
                     break;
                 case 'arrowleft':
                 case 'a':
-                    if (direction.x !== 1) nextDirection = { x: -1, y: 0 };
+                    if (direction.x !== 1) { nextDirection.x = -1; nextDirection.y = 0; }
                     break;
                 case 'arrowright':
                 case 'd':
-                    if (direction.x !== -1) nextDirection = { x: 1, y: 0 };
+                    if (direction.x !== -1) { nextDirection.x = 1; nextDirection.y = 0; }
                     break;
             }
             e.preventDefault();
