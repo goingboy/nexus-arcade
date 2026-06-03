@@ -38,6 +38,31 @@
         .corner-tr { top: 15px; right: 15px; border-top: 2px solid #00ffff; border-right: 2px solid #00ffff; }
         .corner-bl { bottom: 15px; left: 15px; border-bottom: 2px solid #ff00ff; border-left: 2px solid #ff00ff; }
         .corner-br { bottom: 15px; right: 15px; border-bottom: 2px solid #ff00ff; border-right: 2px solid #ff00ff; }
+        .back-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 100;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: rgba(0,229,255,0.08);
+            border: 1px solid rgba(0,229,255,0.25);
+            border-radius: 6px;
+            color: #00e5ff;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-decoration: none;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+        .back-btn:hover {
+            background: rgba(0,229,255,0.15);
+            border-color: rgba(0,229,255,0.5);
+            box-shadow: 0 0 15px rgba(0,229,255,0.2);
+            color: #fff;
+        }
         .controls {
             color: rgba(200,220,255,0.4);
             margin-top: 10px;
@@ -47,6 +72,7 @@
     </style>
 </head>
 <body>
+    <a href="../index.html" class="back-btn">&#8592; 返回首页</a>
     <div class="corner corner-tl"></div>
     <div class="corner corner-tr"></div>
     <div class="corner corner-bl"></div>
@@ -92,7 +118,7 @@ const POWERUP_TYPES = [
     { name: '电磁脉冲', symbol: '💣', color: '#ff6600', effect: 'bomb' }
 ];
 
-let gameState = 'help', gameMode = null, frameCount = 0, score = 0;
+let gameState = 'menu', gameMode = null, frameCount = 0, score = 0;
 let currentLevel = 0, currentPvpMap = 0, currentRound = 0, pvpScores = [0, 0];
 let menuSelection = 0, tankSelection = [0, 0], menuState = 'main';
 let lastTime = 0;
